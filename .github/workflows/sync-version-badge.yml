@@ -1,0 +1,44 @@
+name: Sync Version Badge
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  update-badge:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Extract version from package.json
+        id: extract_version
+        run: |
+          version=$(jq -r '.version' package.json)
+          echo "VERSION=$version" >> $GITHUB_ENV
+
+      - name: Fetch current badge version
+        id: fetch_badge_version
+        run: |
+          badge_version=$(grep -oP 'https://img.shields.io/badge/version-\K[0-9]+\.[0-9]+\.[0-9]+' README.md || echo "none")
+          echo "BADGE_VERSION=$badge_version" >> $GITHUB_ENV
+
+      - name: Compare and update badge
+        if: env.BADGE_VERSION != env.VERSION
+        run: |
+          echo "Mismatch detected: package.json version is $VERSION but badge version is $BADGE_VERSION."
+          updated_badge_url="https://img.shields.io/badge/version-${VERSION}-blue.svg"
+          
+          sed -i "s|https://img.shields.io/badge/version-[0-9]*\.[0-9]*\.[0-9]*-blue.svg|$updated_badge_url|" README.md
+
+      - name: Commit and push updated badge
+        if: env.BADGE_VERSION != env.VERSION
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "Update version badge to v${VERSION}"
+          git push
